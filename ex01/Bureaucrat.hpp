@@ -37,4 +37,4 @@ public:
 
 std::ostream& operator<<(std::ostream &out,const Bureaucrat& b);
 
-#endif // BUREUCRAT_HPP
+#endif // BUREAUCRAT_HPP
