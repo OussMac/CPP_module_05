@@ -1,3 +1,32 @@
+# Index
+
+- [CPP Reminders](#cpp-reminders)
+  - [OCF (Orthodox Canonical Form)](#ocf)
+  - [References](#references)
+  - [Initializer List](#initializer-list)
+  - [Runtime Polymorphism & vtable](#runtime-polymorphism-vtable)
+    - [Inheritance (Quick Reminder)](#inheritance-quick-reminder)
+    - [The Problem that `virtual` Solves](#the-problem-that-virtual-solves)
+    - [The vtable](#the-vtable-what-it-is)
+    - [The vptr](#the-vptr-what-it-is)
+    - [Pure Virtual & Abstract Classes](#pure-virtual-and-abstract-classes)
+    - [Virtual Destructor](#virtual-destructor-why-it-matters)
+  - [Inheritance Types](#inheritance-types)
+
+- [Exercise 00](#ex00)
+  - [Exceptions](#exceptions)
+    - [Why Exceptions](#why-exceptions)
+    - [Throw / Unwind / Catch](#what-really-happens-at-low-level)
+    - [Inheritance Chain](#inheritance-chain)
+    - [Why Inherit from `std::exception`](#why-inherit-from-stdexception)
+    - [Catch Order](#catch-order-matters)
+    - [`what()` Explained](#what-explained)
+    - [Why Nested Classes](#why-nested-classes)
+    - [How to Throw & Catch Exceptions](#how-to-throw-and-catch-exceptions)
+  - [Common Oral Questions](#questions-typically-asked-for-ex00)
+  - [Actual Exercise Implementation](#the-actual-exercise-implementation)
+
+- [Exercise 01](#ex01)
 
 # CPP Module 05
 
