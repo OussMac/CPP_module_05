@@ -1,3 +1,4 @@
+
 # Index
 
 - [CPP Reminders](#cpp-reminders)
@@ -27,7 +28,11 @@
   - [Actual Exercise Implementation](#the-actual-exercise-implementation)
 
 - [Exercise 01](#ex01)
-
+  - [Forward Declaration](#forward-declaration)
+  - [Cross-object Exception Flow](#cross-object-exception-flow)
+  - [*this — Passing Yourself](#this--passing-yourself)
+  - [const Members in Form OCF](#const-members-in-form-ocf)
+  - [Common Oral Questions](#questions-typically-asked-for-ex01)
 # CPP Module 05
 
 ## CPP Reminders
@@ -825,3 +830,109 @@ e. C++ reaches main(), checks: does catch(std::exception& e) match
 
 Key thing to lock in: **`b` never exists**. You can't use it after the try block because it was never constructed. The stack has no `b` object on it. The only thing that got constructed and then destroyed was the `std::string name` inside the initializer list.
 ## ex01 :
+
+this exercise builds directly on ex00, the new concepts introduced here are :
+
+- **Forward Declaration**, solving the circular include problem between Bureaucrat and Form
+- **Cross-object exception flow**, Form throws, Bureaucrat catches, exception crosses class boundaries
+- **`*this`**, passing the current object to another class's method
+
+### Forward Declaration
+
+Bureaucrat needs Form (to call `form.beSigned()`), Form needs Bureaucrat (to call `b.getGrade()`).  
+If both headers include each other → infinite include loop → compiler error.
+
+The fix: in `Form.hpp`, instead of including Bureaucrat, just declare it exists:
+
+```cpp
+class Bureaucrat;   // forward declaration — "trust me, this class exists"
+
+class Form {
+    void beSigned(const Bureaucrat& b);  // reference/pointer is fine with fwd decl
+};
+```
+
+Then in `Form.cpp`, include the full header because that's where you actually call `b.getGrade()`:
+
+```cpp
+#include "Bureaucrat.hpp"  // full definition needed — we call methods on it
+
+void Form::beSigned(const Bureaucrat& b) {
+    if (b.getGrade() <= reqGrade)  // ← needs full Bureaucrat definition
+        isSigned = true;
+}
+```
+
+The rule :
+
+| Situation                                         | Forward decl enough? |
+| ------------------------------------------------- | -------------------- |
+| `const Bureaucrat&` or `Bureaucrat*` as parameter | Yes ✓                |
+| Calling a method `b.getGrade()`                   | No — full include    |
+| Accessing a member                                | No — full include    |
+| Inheriting from it                                | No — full include    |
+
+### Cross-object exception flow
+
+In ex00, throw and catch always lived in the same scope.  
+In ex01, `Form::beSigned` throws and `Bureaucrat::signForm` catches — two different classes.
+
+```
+b.signForm(f)
+  └─► form.beSigned(*this)
+        └─► 100 <= 50 ? NO → throw Form::GradeTooLowException()
+              │
+              ◄── caught inside signForm's catch block
+                  prints: "Bob couldn't sign TaxForm because Form Grade Is Too Low."
+                  signForm returns normally
+
+main's outer catch → NEVER FIRES, signForm already handled it
+```
+
+The exception propagates up the call stack automatically — no return value plumbing between the two classes needed.
+
+### \*this, passing yourself
+
+`this` inside any method is a hidden pointer to the current object.  
+`*this` dereferences it — giving you the object itself to pass as a reference.
+
+```cpp
+void Bureaucrat::signForm(Form& form) {
+    form.beSigned(*this);  // pass the current Bureaucrat as const Bureaucrat&
+}
+```
+
+`beSigned` takes `const Bureaucrat&` — so you dereference `this` to match. No copy made.
+
+### const members in Form OCF
+
+Form has `const int reqGrade`, `const int execGrade`, `const std::string name`.  
+These are locked after construction — only settable in the initializer list.
+
+```cpp
+// copy constructor — all const members set in initializer list, only chance
+Form::Form(const Form& other)
+    : name(other.name), isSigned(other.isSigned),
+      reqGrade(other.reqGrade), execGrade(other.execGrade) {}
+
+// copy assignment — can ONLY copy isSigned, the rest are const
+Form& Form::operator=(const Form& other) {
+    if (this != &other)
+        this->isSigned = other.isSigned;
+    return *this;
+}
+```
+
+### Questions typically asked for ex01
+
+| Question                                                  | Answer                                                                                                                                                 |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Why forward declaration in Form.hpp?                      | To break the circular include — both headers including each other loops forever. Forward decl tells compiler "this class exists" without including it. |
+| When is forward declaration enough?                       | References and pointers. Need full include when calling methods, accessing members, inheriting, or creating by value.                                  |
+| Why does signForm take `Form&` not `const Form&`?         | Because beSigned might set `isSigned = true` — that modifies Form. const would prevent it.                                                             |
+| Why does beSigned take `const Bureaucrat&`?               | Reference = no copy. const = we promise not to modify the Bureaucrat that's signing.                                                                   |
+| What does `*this` mean in signForm?                       | `this` is a `Bureaucrat*` pointer to the current object. `*this` dereferences it to pass the object itself as a reference.                             |
+| Where is the exception caught in the failed signing test? | Inside `Bureaucrat::signForm`, not in main. signForm handles it and prints the failure message. main's outer catch never fires.                        |
+| Why can operator= only copy isSigned?                     | name, reqGrade, execGrade are const — locked after construction. Only mutable members can be assigned.                                                 |
+
+## ex02 :

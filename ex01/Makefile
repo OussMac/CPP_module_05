@@ -1,6 +1,6 @@
 CPP = c++ -std=c++98
 FLAGS = -Wall -Werror -Wextra
-NAME = Bureaucrats
+NAME = Form
 HEADER = Bureaucrat.hpp Form.hpp
 SRC = main.cpp Bureaucrat.cpp Form.cpp
 OBJ = $(SRC:.cpp=.o)
