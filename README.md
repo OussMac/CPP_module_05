@@ -1,5 +1,6 @@
 
 # Index
+# Index
 
 - [CPP Reminders](#cpp-reminders)
   - [OCF (Orthodox Canonical Form)](#ocf)
@@ -33,6 +34,25 @@
   - [*this — Passing Yourself](#this--passing-yourself)
   - [const Members in Form OCF](#const-members-in-form-ocf)
   - [Common Oral Questions](#questions-typically-asked-for-ex01)
+
+- [Exercise 02](#ex02)
+  - [Form → AForm, Abstract Class](#form--aform-abstract-class)
+  - [protected action() and the execute() Wrapper](#protected-action-and-the-execute-wrapper)
+  - [Wrapper Approach vs Single Function Approach](#wrapper-approach-vs-single-function-approach)
+  - [FormNotSignedException](#formnotsignedexception)
+  - [The Three Concrete Forms](#the-three-concrete-forms)
+    - [Copying a Subclass — Why AForm(other) Matters](#copying-a-subclass--why-aformother-matters)
+    - [ShrubberyCreationForm — ofstream, .c_str(), operator bool](#shrubberycreationform--ofstream-cstr-operator-bool)
+    - [RobotomyRequestForm — rand, srand, the seeding bug](#robotomyrequestform--rand-srand-the-seeding-bug)
+    - [PresidentialPardonForm — the simple case](#presidentialpardonform--the-simple-case)
+  - [Bureaucrat's executeForm](#bureaucrats-executeform)
+  - [Common Oral Questions](#questions-typically-asked-for-ex02)
+
+- [Exercise 03](#ex03)
+  - [Intern Has No State](#intern-has-no-state)
+  - [Avoiding if/elseif Chains](#avoiding-ifelseif-chains)
+  - [Function Pointers Approach](#function-pointers-approach)
+  - [Common Oral Questions](#questions-typically-asked-for-ex03)
 # CPP Module 05
 
 ## CPP Reminders
@@ -936,3 +956,335 @@ Form& Form::operator=(const Form& other) {
 | Why can operator= only copy isSigned?                     | name, reqGrade, execGrade are const — locked after construction. Only mutable members can be assigned.                                                 |
 
 ## ex02 :
+
+this exercise turns the base Form into something you actually can't instantiate directly, and adds three classes that DO something concrete. the new concepts here are:
+
+- **Abstract classes and pure virtual functions**, `= 0` makes a function have no body and makes the whole class impossible to create directly
+- **The execute() / action() split**, guards live once in the base, each subclass only writes what makes it unique
+- **A third exception**, FormNotSignedException
+- **File I/O**, std::ofstream, .c_str(), operator bool
+- **Randomness**, std::rand, std::srand, and a subtle bug around seeding
+
+### Form → AForm, abstract class
+
+subject says rename Form to AForm and make it abstract. an abstract class is one you can never create an instance of directly, C++ enforces this the moment you give it a pure virtual function:
+
+```cpp
+virtual void action() const = 0;
+```
+
+that `= 0` means: no implementation here, AForm doesn't know how to "act", only the concrete children do. because of this, AForm becomes abstract automatically, you literally cannot write `AForm a;` anywhere, compiler error.
+
+attributes (name, isSigned, reqGrade, execGrade) all stay private, exactly like Form in ex01, subject explicitly says "attributes need to remain private and belong to the base class."
+
+### protected action() and the execute() wrapper
+
+```cpp
+protected:
+    virtual void action() const = 0;
+
+public:
+    void execute(Bureaucrat const& executor) const;
+```
+
+`execute()` is the one function every form shares, it's NOT virtual on purpose, it does the two checks the subject asks for:
+
+```cpp
+void AForm::execute(Bureaucrat const& executor) const
+{
+    if (!this->getSignature())
+        throw AForm::FormNotSignedException();
+    if (executor.getGrade() > this->getExecGrade())
+        throw AForm::GradeTooLowException();
+    this->action(); // ← vtable dispatch happens here
+}
+```
+
+subject: *"You must check that the form is signed and that the grade of the bureaucrat attempting to execute the form is high enough."* that's these two ifs, written once, in the base.
+
+`action()` is the actual behavior, pure virtual, each subclass fills it in. calling `this->action()` from inside execute() goes through the vtable, at runtime it calls whichever subclass's version matches the real object.
+
+why is `action()` protected and not public? honestly it doesn't matter, plenty of people (including friends) put it public and it's still correct. the idea is external code should call execute() not action() directly, but subject never enforces this, don't stress over it.
+
+### wrapper approach vs single function approach
+
+subject literally says: *"Whether you check the requirements in every concrete class or in the base class... is up to you. However, one way is more elegant than the other."*
+
+two ways to do this:
+
+- **wrapper (what we did)**: base has a real `execute()` with guards, subclasses only implement `action()`. guards written ONCE.
+- **single function**: `execute()` itself is pure virtual, every subclass repeats the two guard checks inside their own `execute()`. guards repeated 3 times.
+
+both compile, both pass, both are accepted at 42. the subject is hinting at the wrapper approach being the "elegant" one, less duplication, if you ever need to change the guard logic you change it in one place instead of three.
+
+### FormNotSignedException
+
+new exception, third one alongside GradeTooHighException / GradeTooLowException. thrown when execute() is called on a form nobody signed yet.
+
+```cpp
+class FormNotSignedException : public std::exception {
+    public:
+    const char* what() const throw();
+};
+```
+
+same pattern as the other two, same reasoning, `const char*` return (no heap allocation risk), `const throw()` to match std::exception's signature exactly.
+
+### virtual ~AForm()
+
+any class you'll delete through a base pointer needs a virtual destructor, or only the base part gets cleaned up.
+
+```cpp
+AForm* ptr = new ShrubberyCreationForm("home");
+delete ptr;
+// WITHOUT virtual: only AForm::~AForm() runs, target string never destroyed properly
+// WITH virtual: ShrubberyCreationForm::~ShrubberyCreationForm() runs FIRST, then AForm::~AForm()
+```
+
+subject doesn't say this explicitly, but you need it because ex03's `makeForm()` returns `AForm*` pointing at concrete objects, and you `delete` them through that base pointer.
+
+### the three concrete forms
+
+| Class | sign grade | exec grade | what it does |
+|---|---|---|---|
+| ShrubberyCreationForm | 145 | 137 | writes ascii tree to `<target>_shrubbery` file |
+| RobotomyRequestForm | 72 | 45 | drilling noise + 50% success/fail |
+| PresidentialPardonForm | 25 | 5 | prints pardon message |
+
+lower grade number = higher rank needed, so Pardon needing grade 5 means only near-top bureaucrats can execute it. the numbers going 145→72→25 for sign, and 137→45→5 for exec, are the subject's own joke, planting shrubbery is trivial, pardoning someone is a huge deal.
+
+all three follow the exact same constructor shape:
+
+```cpp
+ShrubberyCreationForm::ShrubberyCreationForm(const std::string& target)
+    : AForm("ShrubberyCreationForm", 145, 137), target(target) {}
+```
+
+`AForm(...)` sets up the four base members (and validates the grades, though here they're hardcoded so it never actually fails). `target(target)` sets the subclass's own member.
+
+#### copying a subclass, why AForm(other) matters
+
+```cpp
+ShrubberyCreationForm::ShrubberyCreationForm(const ShrubberyCreationForm& other)
+    : AForm(other), target(other.target) {}
+```
+
+`AForm`'s four members are private, ShrubberyCreationForm literally cannot touch them directly, not even to copy them. the ONLY code allowed to copy them is AForm's own copy constructor. so you call `AForm(other)` explicitly. skip this and the base part gets DEFAULT constructed instead of copied, name becomes "AForm" instead of the real name, silently broken.
+
+same story for operator=:
+
+```cpp
+ShrubberyCreationForm& ShrubberyCreationForm::operator=(const ShrubberyCreationForm& other)
+{
+    if (this != &other)
+    {
+        AForm::operator=(other); // only copies isSigned, the rest is const
+        this->target = other.target;
+    }
+    return *this;
+}
+```
+
+remember, AForm's `operator=` only touches `isSigned`, because name/reqGrade/execGrade are const and locked forever after construction.
+
+#### ShrubberyCreationForm, ofstream, .c_str(), operator bool
+
+```cpp
+void ShrubberyCreationForm::action() const
+{
+    std::ofstream file((target + "_shrubbery").c_str());
+    if (!file)
+    {
+        std::cerr << "Error: could not create shrubbery file\n";
+        return ;
+    }
+    file << "..." << "\n";
+    file.close();
+}
+```
+
+- `.c_str()` needed because in C++98, `ofstream`'s constructor only takes `const char*`, not `std::string` directly (C++11 allows std::string, we're on 98).
+- `if (!file)` uses `operator bool()`, an overloaded operator exactly like operator= or operator+, just applied to bool. it checks internal flags (failbit/badbit) that get set if the file couldn't be opened. `!file` calls that operator, negates it, `true` means something went wrong.
+- under the hood ofstream wraps the same OS mechanism as C's `open()`/`write()`/`close()`, but wraps the file descriptor + buffer + error state into one object, and closes automatically via RAII when it goes out of scope (destructor), even if an exception happens mid function.
+
+#### RobotomyRequestForm, rand, srand, the seeding bug
+
+```cpp
+void RobotomyRequestForm::action() const
+{
+    std::srand(std::time(0));
+    std::cout << "BZZZT DRRRR VRRRMMM KACHUNK\n";
+    if (std::rand() % 2)
+        std::cout << target << " has been robotomized successfully!\n";
+    else
+        std::cout << target << " robotomy failed.\n";
+}
+```
+
+- `#include <cstdlib>` / `#include <ctime>` are required even with `std::`, because the namespace doesn't declare anything by itself, the header is what puts `rand`/`srand`/`time` inside the `std` box in the first place.
+- `std::rand()` is pseudo-random, a deterministic formula chained off an internal "state". `std::srand(seed)` sets that starting state. same seed = same sequence, always.
+- `std::time(0)` = seconds since 1970, used as the seed so different program RUNS get different sequences.
+- `% 2` reduces the huge rand() number down to just 0 or 1, odd/even, roughly a coin flip.
+
+**the bug (kept on purpose, my choice):** `srand` is called INSIDE `action()`, every single call reseeds. `time(0)` only has 1-second resolution, so two robotomies happening in the same second get the exact same seed → exact same result. the "textbook correct" fix is seeding once in `main()` and never touching srand again inside action(). i chose to keep it as is and just test across separate program runs instead.
+
+#### PresidentialPardonForm, the simple case
+
+```cpp
+void PresidentialPardonForm::action() const
+{
+    std::cout << target << " has been pardoned by Zaphod Beeblebrox.\n";
+}
+```
+
+no file, no randomness, just a print. this is the class that shows the whole POINT of execute()/action(), by the time action() runs, execute() already guaranteed the form is signed and the grade is high enough, action() doesn't need to check anything, it just does its one job.
+
+### Bureaucrat's executeForm
+
+```cpp
+void Bureaucrat::executeForm(AForm const& form) const
+{
+    try
+    {
+        form.execute(*this);
+        std::cout << this->getName() << " executed " << form.getName() << "\n";
+    }
+    catch (std::exception& e)
+    {
+        std::cout << this->getName() << " couldn't execute " << form.getName()
+                  << " because " << e.what() << "\n";
+    }
+}
+```
+
+exact same shape as signForm from ex01, try the operation, catch anything that inherits from std::exception, print success or the reason for failure. `*this` inside a const method is `const Bureaucrat&`, matching what `execute(Bureaucrat const&)` expects.
+
+### Questions typically asked for ex02
+
+| Question | Answer |
+|---|---|
+| Why is AForm abstract? | Because action() is declared `= 0`, a pure virtual function with no body. Any class with at least one pure virtual function can't be instantiated. |
+| Why is execute() not virtual? | So subclasses can't bypass the guard checks. It's the same function for every form, only action() varies. |
+| Why does execute() call action() instead of doing everything itself? | action() is what's actually different per form (file write, drilling, print). execute() is what's always the same (the two checks). |
+| Why virtual destructor on AForm? | Deleting a subclass object through an AForm* pointer needs the subclass's destructor to run too, not just the base one. |
+| Why AForm(other) in every subclass's copy constructor? | AForm's members are private, subclasses can't copy them directly, only AForm's own copy constructor can. |
+| Why .c_str() in ShrubberyCreationForm? | C++98's ofstream constructor only accepts const char*, not std::string. |
+| Why re-include cstdlib/ctime even though we already know rand exists? | Namespaces don't declare anything, headers do. std::rand doesn't exist in the std:: box until the header puts it there. |
+
+## ex03 :
+
+this exercise is much smaller, one new class, Intern, whose entire job is to build the right form object from a plain string name, without writing an if/elseif chain (subject explicitly forbids this).
+
+### Intern has no state
+
+subject: *"The intern has no name, no grade, and no unique characteristics."* this means Intern should NOT store anything, no member variables at all besides what OCF requires. every call to makeForm() is independent, nothing remembered between calls.
+
+```cpp
+class Intern {
+    public:
+    Intern();
+    Intern(const Intern& other);
+    Intern& operator=(const Intern& other);
+    ~Intern();
+
+    AForm* makeForm(const std::string& formName, const std::string& target) const;
+};
+```
+
+empty class basically, just the one method that matters.
+
+### avoiding if/elseif chains
+
+subject: *"You must avoid unreadable and messy solutions, such as using an excessive if/elseif/else structure."*
+
+the trick is a **parallel array lookup**, one array of names, one array of "things to do when that name matches", searched with a plain loop instead of a chain of ifs:
+
+```cpp
+const std::string formNames[3] = {
+    "shrubbery creation",
+    "robotomy request",
+    "presidential pardon"
+};
+```
+
+these exact strings come straight from the subject's own example:
+```cpp
+rrf = someRandomIntern.makeForm("robotomy request", "Bender");
+```
+lowercase, space separated, NOT the class name (`RobotomyRequestForm`). matching against the wrong string format silently breaks the subject's own worked example.
+
+### function pointers approach
+
+```cpp
+static AForm* createShrubbery(const std::string& target)
+{
+    return new ShrubberyCreationForm(target);
+}
+static AForm* createRobotomy(const std::string& target)
+{
+    return new RobotomyRequestForm(target);
+}
+static AForm* createPardon(const std::string& target)
+{
+    return new PresidentialPardonForm(target);
+}
+```
+
+three tiny helper functions, one per concrete class, each just builds and returns that one form. marked `static` at file scope, meaning internal linkage, only visible inside Intern.cpp, nobody else can call them, keeps them as an implementation detail (same idea as making something private, but for free functions).
+
+```cpp
+AForm* (*creators[3])(const std::string&) = {
+    createShrubbery,
+    createRobotomy,
+    createPardon
+};
+```
+
+read right to left: `creators[3]` is an array of 3 things, `(*creators[3])` means those things are pointers, the whole line means "pointers to functions taking a const string& and returning AForm*". a bare function name like `createShrubbery` automatically decays into its own address, no `&` needed.
+
+```cpp
+for (int i = 0; i < 3; i++)
+{
+    if (formNames[i] == formName)
+    {
+        AForm* form = creators[i](target);
+        std::cout << "Intern creates " << form->getName() << "\n";
+        return (form);
+    }
+}
+std::cout << "Intern couldn't find a form named \"" << formName << "\"\n";
+return (NULL);
+```
+
+two arrays, same index meaning, `formNames[1]` and `creators[1]` are "the robotomy pair". loop walks both in lockstep, the moment index `i` matches the searched name, `creators[i]` is guaranteed to be the matching function. calling `creators[i](target)` through the pointer works exactly like calling that function directly by name.
+
+if nothing matches, loop finishes without returning, falls through to the error message and `NULL`.
+
+`form->getName()` reads AForm's own private `name` (set inside the concrete constructor), so the printed name always matches the real object, not just an echo of whatever string was searched for.
+
+there's also a simpler version of this using a plain `switch(index)` instead of function pointers, does the exact same job, fewer moving parts, easier to explain live without needing to describe pointer-to-function syntax. either is accepted, this is just a style choice.
+
+### memory ownership in main
+
+```cpp
+AForm* form = intern.makeForm(names[i], "Bender");
+if (form)
+{
+    b.signForm(*form);
+    b.executeForm(*form);
+    delete form;
+}
+```
+
+makeForm returns a heap pointer (`new` was called inside the helper functions), caller is responsible for `delete`ing it. `if (form)` guards against the `NULL` case (unknown form name), never delete a null pointer path that never allocated anything. this is also exactly why AForm needed the virtual destructor from ex02, `delete form` here goes through an `AForm*` pointing at a concrete subclass object.
+
+### Questions typically asked for ex03
+
+| Question                                                                 | Answer                                                                                                                                                    |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Why doesn't Intern store the form name or target as members?             | Subject says Intern has "no unique characteristics", it should be stateless, each makeForm() call is self-contained.                                      |
+| Why avoid if/elseif here specifically?                                   | Subject explicitly forbids it for this exercise, an array + loop (or switch) scales cleanly if more form types get added later.                           |
+| Why static on the helper functions?                                      | Internal linkage, keeps them private to Intern.cpp, nothing outside this file should call them directly.                                                  |
+| Why does makeForm return NULL on failure instead of throwing?            | Subject says "print an explicit error message", not throw an exception, so NULL + a printed message is what's asked for.                                  |
+| Who deletes the form makeForm() returns?                                 | The caller (main, or whoever called makeForm), makeForm only creates it with new, ownership passes to whoever received the pointer.                       |
+| Why does AForm need a virtual destructor for this exercise specifically? | Because objects are deleted through an AForm* pointer here, without virtual, only AForm's own destructor would run, leaking the subclass's target string. |
