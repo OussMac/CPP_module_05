@@ -3,7 +3,7 @@
 
 #include <string>
 #include <iostream>
-#include "AForm.hpp" // CHANGED: was Form.hpp
+#include "AForm.hpp"
 
 class Bureaucrat {
     private:
@@ -27,8 +27,8 @@ class Bureaucrat {
     void decrementGrade();
 
     // Form methods
-    void signForm(AForm& form);                    // CHANGED: was Form&
-    void executeForm(AForm const& form) const;     // NEW
+    void signForm(AForm& form);
+    void executeForm(AForm const& form) const;
 
     // Exceptions
     class GradeTooHighException : public std::exception {

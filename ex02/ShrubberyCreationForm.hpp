@@ -8,15 +8,15 @@ class ShrubberyCreationForm : public AForm {
     private:
     std::string target;
 
-    protected:
-    void action() const; // writes ASCII trees to target_shrubbery file
-
     public:
+    ShrubberyCreationForm(const std::string& target); // constructor from a string
+    // OCF
     ShrubberyCreationForm();
-    ShrubberyCreationForm(const std::string& target);
     ShrubberyCreationForm(const ShrubberyCreationForm& other);
     ShrubberyCreationForm& operator=(const ShrubberyCreationForm& other);
     ~ShrubberyCreationForm();
+    // methods
+    void action() const;
 };
 
 #endif // SHRUBBERYCREATIONFORM_HPP

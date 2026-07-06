@@ -23,7 +23,7 @@ AForm& AForm::operator=(const AForm& other)
     return (*this);
 }
 
-AForm::~AForm() {} // NEW: virtual destructor body — empty but must exist
+AForm::~AForm() {}
 
 const std::string& AForm::getName() const
 {
@@ -53,16 +53,13 @@ void AForm::beSigned(const Bureaucrat& b)
         throw AForm::GradeTooLowException();
 }
 
-// NEW: execute() — guards live here so subclasses don't repeat them
-// checks: is form signed? is executor grade high enough?
-// then calls action() which goes through the vtable to the right subclass
 void AForm::execute(Bureaucrat const& executor) const
 {
     if (!this->getSignature())
         throw AForm::FormNotSignedException();
     if (executor.getGrade() > this->getExecGrade())
         throw AForm::GradeTooLowException();
-    this->action(); // vtable dispatch → calls the correct subclass action()
+    this->action();
 }
 
 const char* AForm::GradeTooHighException::what() const throw()
@@ -75,7 +72,6 @@ const char* AForm::GradeTooLowException::what() const throw()
     return "Form Grade Is Too Low.";
 }
 
-// NEW
 const char* AForm::FormNotSignedException::what() const throw()
 {
     return "Form is not signed.";
@@ -83,9 +79,7 @@ const char* AForm::FormNotSignedException::what() const throw()
 
 std::ostream& operator<<(std::ostream& out, const AForm& f)
 {
-    out << "Form: " << f.getName()
-        << " | signed: "              << f.getSignature()
-        << " | sign grade required: " << f.getReqGrade()
-        << " | exec grade required: " << f.getExecGrade();
+    out << "Form: " << f.getName() << " | signed: "              << f.getSignature()
+        << " | sign grade required: " << f.getReqGrade() << " | exec grade required: " << f.getExecGrade();
     return out;
 }

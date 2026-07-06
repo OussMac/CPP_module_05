@@ -6,16 +6,15 @@
 class PresidentialPardonForm : public AForm {
     private:
     std::string target;
-
-    protected:
-    void action() const; // informs target has been pardoned by Zaphod Beeblebrox
-
+    
     public:
     PresidentialPardonForm();
     PresidentialPardonForm(const std::string& target);
     PresidentialPardonForm(const PresidentialPardonForm& other);
     PresidentialPardonForm& operator=(const PresidentialPardonForm& other);
     ~PresidentialPardonForm();
+    // methods
+    void action() const;
 };
 
 #endif // PRESIDENTIALPARDONFORM_HPP

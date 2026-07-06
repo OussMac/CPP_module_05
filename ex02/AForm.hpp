@@ -13,28 +13,29 @@ class AForm {
     bool                isSigned;
     const int           reqGrade;
     const int           execGrade;
-
-    protected:
-    virtual void action() const = 0; // NEW: subclasses implement their specific action here
-
+    
     public:
     // OCF
     AForm();
     AForm(const std::string& f_name, int f_reqGrade, int f_execGrade);
     AForm(const AForm& other);
     AForm& operator=(const AForm& other);
-    virtual ~AForm(); // NEW: virtual destructor — required for correct delete via AForm*
-
+    virtual ~AForm();
+    
     // Getters
     const std::string&  getName() const;
     bool                getSignature() const;
     int                 getReqGrade() const;
     int                 getExecGrade() const;
-
+    
     // Form methods
     void beSigned(const Bureaucrat& b);
-    void execute(Bureaucrat const& executor) const; // NEW: guards in base, calls action()
 
+    // execute with checks
+    void execute(Bureaucrat const& executor) const;
+    // action for each subclass
+    virtual void action() const = 0;
+    
     // Exceptions
     class GradeTooHighException : public std::exception {
         public:
